@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <iostream>
 #include <vector>
+#include <limits>
 
 int main() {
     try {
@@ -13,9 +14,19 @@ int main() {
 
         std::cout << "Enter file name: ";
         std::cin >> filename;
+        
+        if (filename.empty()) {
+            std::cerr << "Error: File name cannot be empty!" << std::endl;
+            return 1;
+        }
 
         std::cout << "Enter record count: ";
         std::cin >> recordCount;
+        
+        if (std::cin.fail() || recordCount <= 0) {
+            std::cerr << "Error: Record count must be a positive number!" << std::endl;
+            return 1;
+        }
 
         std::vector<employee> employees(recordCount);
 
@@ -24,12 +35,24 @@ int main() {
 
             std::cout << "num: ";
             std::cin >> employees[i].num;
+            if (std::cin.fail()) {
+                std::cerr << "Error: Invalid number input!" << std::endl;
+                return 1;
+            }
 
             std::cout << "name: ";
             std::cin >> employees[i].name;
+            if (std::cin.fail()) {
+                std::cerr << "Error: Invalid name input!" << std::endl;
+                return 1;
+            }
 
             std::cout << "hours: ";
             std::cin >> employees[i].hours;
+            if (std::cin.fail() || employees[i].hours < 0) {
+                std::cerr << "Error: Hours must be a non-negative number!" << std::endl;
+                return 1;
+            }
         }
 
         FileManager fileManager(filename);
@@ -41,6 +64,11 @@ int main() {
 
         std::cout << "Enter client count: ";
         std::cin >> clientCount;
+        
+        if (std::cin.fail() || clientCount <= 0) {
+            std::cerr << "Error: Client count must be a positive number!" << std::endl;
+            return 1;
+        }
 
         for (int i = 0; i < clientCount; ++i) {
             STARTUPINFO si{};
@@ -62,11 +90,11 @@ int main() {
                 &si,
                 &pi
             )) {
-                ThrowLastError("CreateProcess failed");
+                std::cerr << "Warning: Failed to create client process #" << i << std::endl;
+            } else {
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
             }
-
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
         }
 
         PipeServer server(
@@ -75,6 +103,12 @@ int main() {
         );
 
         server.run(clientCount);
+        
+        std::cout << "\nModified file contents:" << std::endl;
+        for (int i = 0; i < recordCount; ++i) {
+            employee emp = fileManager.readRecord(i);
+            std::cout << emp.num << " " << emp.name << " " << emp.hours << std::endl;
+        }
     }
     catch (const std::exception& ex) {
         std::cout << ex.what() << std::endl;
