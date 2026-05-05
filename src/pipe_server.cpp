@@ -1,6 +1,7 @@
 #include "../include/pipe_server.h"
 #include "../include/utils.h"
 #include <windows.h>
+#include <iostream>
 
 const char* PIPE_NAME = "\\\\.\\pipe\\lab5_pipe";
 
@@ -17,6 +18,7 @@ DWORD WINAPI HandleClient(LPVOID lpParam){
     BOOL connected = ConnectNamedPipe(hPipe, nullptr) ? TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
 
     if (!connected) {
+        std::cerr << "Failed to connect client pipe" << std::endl;
         CloseHandle(hPipe);
         delete context;
         return 1;
@@ -29,23 +31,30 @@ DWORD WINAPI HandleClient(LPVOID lpParam){
     DWORD bytesWritten = 0;
 
     while(true){
+        memset(&request, 0, sizeof(request));
+        
         BOOL readResult = ReadFile(hPipe, &request, sizeof(request), &bytesRead, nullptr);
 
         if(!readResult || bytesRead == 0){
+            if (GetLastError() != ERROR_BROKEN_PIPE) {
+                std::cerr << "ReadFile error: " << GetLastError() << std::endl;
+            }
             break;
         }
 
         if (request.recordId < 0 || request.recordId >= fileManager->getRecordCount()){
             response.success = false;
+            memset(&response.data, 0, sizeof(employee));
 
-            WriteFile(
+            if (!WriteFile(
                 hPipe,
                 &response,
                 sizeof(response),
                 &bytesWritten,
                 nullptr
-            );
-
+            )) {
+                std::cerr << "Failed to send error response" << std::endl;
+            }
             continue;
         }
 
@@ -57,7 +66,9 @@ DWORD WINAPI HandleClient(LPVOID lpParam){
             response.data = fileManager->readRecord(request.recordId);
             response.success = true;
 
-            WriteFile(hPipe, &response, sizeof(response), &bytesWritten, nullptr);
+            if (!WriteFile(hPipe, &response, sizeof(response), &bytesWritten, nullptr)) {
+                std::cerr << "Failed to send read response" << std::endl;
+            }
 
             lockManager->unlockRead(request.recordId);
 
@@ -68,7 +79,9 @@ DWORD WINAPI HandleClient(LPVOID lpParam){
             fileManager->writeRecord(request.recordId, request.data);
             response.success = true;
 
-            WriteFile(hPipe, &response, sizeof(response), &bytesWritten, nullptr);
+            if (!WriteFile(hPipe, &response, sizeof(response), &bytesWritten, nullptr)) {
+                std::cerr << "Failed to send write response" << std::endl;
+            }
 
             lockManager->unlockWrite(request.recordId);
 
@@ -77,6 +90,8 @@ DWORD WINAPI HandleClient(LPVOID lpParam){
             break;
         
         default:
+            response.success = false;
+            WriteFile(hPipe, &response, sizeof(response), &bytesWritten, nullptr);
             break;
         }
 

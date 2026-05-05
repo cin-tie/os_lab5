@@ -8,7 +8,7 @@ FileManager::FileManager(const std::string& filename){
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         nullptr,
-        OPEN_ALWAYS,
+        CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,
         nullptr
     );
