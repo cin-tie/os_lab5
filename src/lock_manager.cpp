@@ -20,7 +20,7 @@ void LockManager::lockRead(int index){
 
     lock.readers++;
 
-    if(lock.readers == 1){
+    if(lock.readers == 1){      // First reading blocks writing
         WaitForSingleObject(lock.resourceMutex, INFINITE);
     }
 
@@ -43,7 +43,7 @@ void LockManager::unlockRead(int index){
 }
 
 // Lock writing
-// Waiting for writing available, locking reading if not already
+// Waiting for writing available
 void LockManager::lockWrite(int index){
     WaitForSingleObject(locks[index].resourceMutex, INFINITE);
 }
