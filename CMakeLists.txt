@@ -40,6 +40,7 @@ RUNTIME_OUTPUT_DIRECTORY
 ${CMAKE_BINARY_DIR}/bin
 )
 
+# GoogleTest setup
 include(FetchContent)
 
 FetchContent_Declare(
@@ -47,25 +48,30 @@ googletest
 URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
 )
 
-FetchContent_MakeAvailable(
-googletest
-)
+FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+# Unit tests executable (без копирования файлов)
 add_executable(unit_tests
 tests/unit_tests.cpp
+src/file_manager.cpp
+src/lock_manager.cpp
+src/utils.cpp
 )
 
-target_link_libraries(
-unit_tests
+target_link_libraries(unit_tests
 gtest
 gtest_main
 )
 
-add_test(
-NAME unit_tests
-COMMAND unit_tests
+add_test(NAME unit_tests COMMAND unit_tests)
+
+# Optional: Run tests with verbose output
+add_custom_target(check
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS unit_tests
 )
 
-# RUN # cmake .. -DCMAKE_C_COMPILER=/usr/bin/x86_64-w64-mingw32-gcc -DCMAKE_CXX_COMPILER=/usr/bin/x86_64-w64-mingw32-g++
+# RUN 
+# cmake .. -DCMAKE_C_COMPILER=/usr/bin/x86_64-w64-mingw32-gcc -DCMAKE_CXX_COMPILER=/usr/bin/x86_64-w64-mingw32-g++
