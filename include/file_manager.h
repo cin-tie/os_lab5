@@ -5,6 +5,7 @@
 #include <vector>
 #include "employee.h"
 
+// File manager
 class FileManager
 {
 private:
