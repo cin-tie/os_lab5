@@ -57,6 +57,14 @@ int main() {
 
         FileManager fileManager(filename);
         fileManager.initialize(employees);
+        
+        // 1.2. Выводит созданный файл на консоль
+        std::cout << "\n=== CREATED FILE ===" << std::endl;
+        for (int i = 0; i < recordCount; ++i) {
+            employee emp = fileManager.readRecord(i);
+            std::cout << emp.num << " " << emp.name << " " << emp.hours << std::endl;
+        }
+        std::cout << "===================\n" << std::endl;
 
         LockManager lockManager(recordCount);
 
@@ -97,21 +105,27 @@ int main() {
             }
         }
 
-        PipeServer server(
-            fileManager,
-            lockManager
-        );
-
+        PipeServer server(fileManager, lockManager);
         server.run(clientCount);
         
-        std::cout << "\nModified file contents:" << std::endl;
+        // 1.5. После завершения работы всех процессов клиентов выводит на консоль модифицированный файл
+        std::cout << "\n=== MODIFIED FILE ===" << std::endl;
         for (int i = 0; i < recordCount; ++i) {
             employee emp = fileManager.readRecord(i);
             std::cout << emp.num << " " << emp.name << " " << emp.hours << std::endl;
         }
+        std::cout << "====================\n" << std::endl;
+        
+        // 1.6. По команде с консоли завершает свою работу
+        std::cout << "Press Enter to exit...";
+        std::cin.ignore();
+        std::cin.get();
     }
     catch (const std::exception& ex) {
         std::cout << ex.what() << std::endl;
+        std::cout << "Press Enter to exit...";
+        std::cin.ignore();
+        std::cin.get();
         return 1;
     }
 
