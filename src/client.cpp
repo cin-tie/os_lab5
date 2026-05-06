@@ -2,6 +2,7 @@
 #include "../include/utils.h"
 #include <windows.h>
 #include <iostream>
+#include <string>
 
 const char* PIPE_NAME = "\\\\.\\pipe\\lab5_pipe";
 
@@ -37,7 +38,11 @@ int main() {
         while (true) {
             int command;
 
-            std::cout << "1-READ 2-WRITE 3-EXIT: ";
+            std::cout << "\n===== MENU =====" << std::endl;
+            std::cout << "1 - READ record" << std::endl;
+            std::cout << "2 - MODIFY record" << std::endl;
+            std::cout << "3 - EXIT" << std::endl;
+            std::cout << "Choice: ";
 
             std::cin >> command;
 
@@ -46,23 +51,47 @@ int main() {
                 continue;
             }
 
-            Request request{};
-
             if (command == 1) {
+                Request request{};
                 request.type = CommandType::READ;
 
-                std::cout << "Record ID: ";
+                std::cout << "Enter record ID to read: ";
                 std::cin >> request.recordId;
 
                 if (request.recordId < 0) {
                     std::cout << "Error: Record ID must be >= 0\n";
                     continue;
                 }
+
+                DWORD bytesWritten;
+                if (!WriteFile(hPipe, &request, sizeof(request), &bytesWritten, nullptr)) {
+                    std::cout << "Error: Failed to send read request\n";
+                    break;
+                }
+
+                Response response{};
+                DWORD bytesRead;
+                if (!ReadFile(hPipe, &response, sizeof(response), &bytesRead, nullptr)) {
+                    std::cout << "Error: Failed to read response\n";
+                    break;
+                }
+
+                if (!response.success) {
+                    std::cout << "Operation failed (invalid record ID?)\n";
+                    continue;
+                }
+
+                std::cout << "\n=== RECORD READ ===" << std::endl;
+                std::cout << "ID:   " << response.data.num << std::endl;
+                std::cout << "Name: " << response.data.name << std::endl;
+                std::cout << "Hours: " << response.data.hours << std::endl;
+                std::cout << "===================\n" << std::endl;
             }
             else if (command == 2) {
-                request.type = CommandType::WRITE;
+                Request request{};
+                request.type = CommandType::READ;
 
-                std::cout << "Record ID: ";
+                std::cout << "Enter record ID to modify: ";
                 std::cin >> request.recordId;
 
                 if (request.recordId < 0) {
@@ -70,74 +99,89 @@ int main() {
                     continue;
                 }
 
-                std::cout << "num: ";
-                std::cin >> request.data.num;
+                DWORD bytesWritten;
+                if (!WriteFile(hPipe, &request, sizeof(request), &bytesWritten, nullptr)) {
+                    std::cout << "Error: Failed to send read request\n";
+                    break;
+                }
 
-                std::cout << "name: ";
-                std::cin >> request.data.name;
+                Response response{};
+                DWORD bytesRead;
+                if (!ReadFile(hPipe, &response, sizeof(response), &bytesRead, nullptr)) {
+                    std::cout << "Error: Failed to read response\n";
+                    break;
+                }
 
-                std::cout << "hours: ";
-                std::cin >> request.data.hours;
+                if (!response.success) {
+                    std::cout << "Operation failed (invalid record ID?)\n";
+                    continue;
+                }
 
-                if (request.data.hours < 0) {
+                std::cout << "\n=== CURRENT RECORD ===" << std::endl;
+                std::cout << "ID:   " << response.data.num << std::endl;
+                std::cout << "Name: " << response.data.name << std::endl;
+                std::cout << "Hours: " << response.data.hours << std::endl;
+                std::cout << "======================\n" << std::endl;
+
+                employee modifiedData;
+                std::cout << "Enter NEW values:" << std::endl;
+                std::cout << "New num: ";
+                std::cin >> modifiedData.num;
+                
+                std::cout << "New name: ";
+                std::cin >> modifiedData.name;
+                
+                std::cout << "New hours: ";
+                std::cin >> modifiedData.hours;
+
+                if (modifiedData.hours < 0) {
                     std::cout << "Error: Hours must be >= 0\n";
                     continue;
                 }
+
+                std::cout << "\nDo you want to save changes? (y/n): ";
+                std::string confirm;
+                std::cin >> confirm;
+                
+                if (confirm != "y" && confirm != "Y") {
+                    std::cout << "Modification cancelled.\n";
+                    continue;
+                }
+
+                Request writeRequest{};
+                writeRequest.type = CommandType::WRITE;
+                writeRequest.recordId = request.recordId;
+                writeRequest.data = modifiedData;
+
+                if (!WriteFile(hPipe, &writeRequest, sizeof(writeRequest), &bytesWritten, nullptr)) {
+                    std::cout << "Error: Failed to send write request\n";
+                    break;
+                }
+
+                Response writeResponse{};
+                if (!ReadFile(hPipe, &writeResponse, sizeof(writeResponse), &bytesRead, nullptr)) {
+                    std::cout << "Error: Failed to read write response\n";
+                    break;
+                }
+
+                if (writeResponse.success) {
+                    std::cout << "Write successful! Record modified.\n";
+                } else {
+                    std::cout << "Write failed!\n";
+                }
             }
             else {
+                Request request{};
                 request.type = CommandType::EXIT;
-            }
-
-            DWORD bytesWritten;
-
-            if (!WriteFile(
-                hPipe,
-                &request,
-                sizeof(request),
-                &bytesWritten,
-                nullptr
-            )) {
-                std::cout << "Error: Failed to send request\n";
+                
+                DWORD bytesWritten;
+                WriteFile(hPipe, &request, sizeof(request), &bytesWritten, nullptr);
                 break;
-            }
-
-            if (request.type == CommandType::EXIT) {
-                break;
-            }
-
-            Response response{};
-            DWORD bytesRead;
-
-            if (!ReadFile(
-                hPipe,
-                &response,
-                sizeof(response),
-                &bytesRead,
-                nullptr
-            )) {
-                std::cout << "Error: Failed to read response\n";
-                break;
-            }
-
-            if (!response.success) {
-                std::cout << "Operation failed (invalid record ID?)\n";
-                continue;
-            }
-
-            if (request.type == CommandType::READ) {
-                std::cout << response.data.num
-                          << " "
-                          << response.data.name
-                          << " "
-                          << response.data.hours
-                          << std::endl;
-            }
-            else if (request.type == CommandType::WRITE) {
-                std::cout << "Write successful\n";
             }
         }
 
         CloseHandle(hPipe);
+        std::cout << "\nDisconnected from server.\n";
     }
     catch (const std::exception& ex) {
         std::cout << ex.what() << std::endl;
