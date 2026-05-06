@@ -2,9 +2,12 @@
 
 #include "employee.h"
 
-enum class CommandType{
-    READ,
-    WRITE,
+enum class CommandType
+{
+    READ_LOCK,
+    WRITE_LOCK,
+    UPDATE,
+    UNLOCK,
     EXIT
 };
 

@@ -22,5 +22,7 @@ public:
 
     int getRecordCount();
 
+    int findById(int id);
+
     ~FileManager();
 };
