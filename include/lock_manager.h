@@ -1,18 +1,16 @@
 #pragma once
 
 #include <windows.h>
-#include <string>
 #include <vector>
 
-// Locker structure
+// Struct for every employee to lock
 struct RecordLock
 {
     HANDLE resourceMutex;
     HANDLE readerMutex;
-    int readers;
+    LONG readers;
 };
 
-// Lock manager
 class LockManager
 {
 private:
@@ -20,11 +18,12 @@ private:
 
 public:
     LockManager(int count);
-    
-    void lockRead(int index);
-    void unlockRead(int index);
-    void lockWrite(int index);
-    void unlockWrite(int index);
+
+    bool lockRead(int index);
+    bool unlockRead(int index);
+
+    bool lockWrite(int index);
+    bool unlockWrite(int index);
 
     ~LockManager();
 };

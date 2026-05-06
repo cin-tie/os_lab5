@@ -2,15 +2,22 @@
 
 #include "employee.h"
 
+// Command types
 enum class CommandType
 {
     READ_LOCK,
+    READ_GET,
+    READ_RELEASE,
+
     WRITE_LOCK,
-    UPDATE,
-    UNLOCK,
+    WRITE_COMMIT,
+    WRITE_GET,
+    WRITE_RELEASE,
+
     EXIT
 };
 
+// Request structure for pipes
 struct Request
 {
     CommandType type;
@@ -18,6 +25,7 @@ struct Request
     employee data;
 };
 
+// Response structure for pipes
 struct Response
 {
     bool success;

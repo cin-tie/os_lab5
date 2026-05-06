@@ -65,22 +65,6 @@ int FileManager::getRecordCount(){
     return size / sizeof(employee);
 }
 
-// Find by id
-int FileManager::findById(int id)
-{
-    int count = getRecordCount();
-
-    for(int i = 0; i < count; ++i)
-    {
-        employee emp = readRecord(i);
-
-        if(emp.num == id)
-            return i;
-    }
-
-    return -1;
-}
-
 // Destructor
 FileManager::~FileManager(){
     CloseHandle(fileHandle);
