@@ -236,7 +236,7 @@ int main(){
                     
                     modifiedFlag = false;
                 }
-                // exit
+                // Exit
                 else if (choice == 5){
                     if(modifiedFlag){
                         std::cout << "You have uncommited changes!\nAre you sure to continue?(y|N): ";

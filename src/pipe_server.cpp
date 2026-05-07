@@ -5,8 +5,8 @@
 const char* PipeServer::PIPE_NAME = "\\\\.\\pipe\\lab5_pipe";
 
 // Constructor
-PipeServer::PipeServer(FileManager& fm, LockManager& lm)
-    : fileManager(fm), lockManager(lm)
+PipeServer::PipeServer(FileManager& fileManager, LockManager& lockManager)
+    : fileManager(fileManager), lockManager(lockManager)
 {
 }
 
