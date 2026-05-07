@@ -11,7 +11,7 @@ PipeServer::PipeServer(FileManager& fm, LockManager& lm)
 }
 
 // Client handling
-void PipeServer::processClient(HANDLE pipe)
+void PipeServer::processClient(ThreadData* threadData)
 {
     Request req;
     Response res;
@@ -23,7 +23,7 @@ void PipeServer::processClient(HANDLE pipe)
 
     while (true){
         // Read request
-        if (!ReadFile(pipe, &req, sizeof(req), &bytes, nullptr)) {
+        if (!ReadFile(threadData->pipe, &req, sizeof(req), &bytes, nullptr)) {
             DWORD error = GetLastError();
             if (error != ERROR_BROKEN_PIPE) {
                 PrintError("ReadFile failed with error: " + std::to_string(error));
@@ -49,7 +49,7 @@ void PipeServer::processClient(HANDLE pipe)
             PrintError("Invalid record index: " + std::to_string(index) + 
                       " (available: 0-" + std::to_string(recordCount - 1) + ")");
             res.success = false;
-            WriteFile(pipe, &res, sizeof(res), &bytes, nullptr);
+            WriteFile(threadData->pipe, &res, sizeof(res), &bytes, nullptr);
             continue;
         }
 
@@ -158,7 +158,7 @@ void PipeServer::processClient(HANDLE pipe)
             continue;
         }
         
-        if (!WriteFile(pipe, &res, sizeof(res), &bytes, nullptr)) {
+        if (!WriteFile(threadData->pipe, &res, sizeof(res), &bytes, nullptr)) {
             PrintError("Failed to write response to pipe");
             break;
         }
@@ -173,7 +173,9 @@ void PipeServer::processClient(HANDLE pipe)
         lockManager.unlockWrite(lockedRecord);
     }
     
-    CloseHandle(pipe);
+    CloseHandle(threadData->pipe);
+
+    std::cout << "Client " << threadData->clientNumber << " turned off..." << std::endl;
 }
 
 // Clients handlers thread runner
@@ -181,7 +183,7 @@ DWORD WINAPI clientThread(LPVOID param) {
     ThreadData* data = (ThreadData*)param;
     
     try {
-        data->server->processClient(data->pipe);
+        data->server->processClient(data);
     } catch(...) // Catch any exception while running client
     {
         PrintError("Exception in client thread");
@@ -194,6 +196,8 @@ DWORD WINAPI clientThread(LPVOID param) {
 // Server run
 void PipeServer::run(int clientsCount)
 {
+    HANDLE* threads = new HANDLE[clientsCount];
+
     for (int i = 0; i < clientsCount; ++i)
     {
         // Create pipe
@@ -204,25 +208,26 @@ void PipeServer::run(int clientsCount)
             PIPE_UNLIMITED_INSTANCES,
             sizeof(Response),
             sizeof(Request),
-            0,
+            5000,
             nullptr
         );
 
-        if (pipe == INVALID_HANDLE_VALUE)
-        {
-            std::cout << "Pipe creation failed\n";
+        if (pipe == INVALID_HANDLE_VALUE) {
+            PrintError("Pipe creation failed");
             continue;
         }
 
+        std::cout << "Waiting for client " << (i + 1) << " to connect..." << std::endl;
+
         // Try to connect
         BOOL connected = ConnectNamedPipe(pipe, nullptr);
-        if (!connected)
-        {
+        if (!connected && GetLastError() != ERROR_PIPE_CONNECTED) {
+            PrintError("Failed to connect pipe");
             CloseHandle(pipe);
             continue;
         }
 
-        ThreadData* data = new ThreadData{ this, pipe };
+        ThreadData* data = new ThreadData{ this, pipe, i + 1 };
 
         // Create handler thread for client
         HANDLE thread = CreateThread(
@@ -234,6 +239,24 @@ void PipeServer::run(int clientsCount)
             nullptr
         );
 
-        CloseHandle(thread);
+        if (threads[i] == nullptr) {
+            PrintError("Failed to create client thread");
+            delete data;
+            CloseHandle(pipe);
+        }
+
     }
+
+    // Wait for all client threads to complete
+    WaitForMultipleObjects(clientsCount, threads, TRUE, INFINITE);
+    
+    for (int i = 0; i < clientsCount; ++i) {
+        if (threads[i] != nullptr) {
+            CloseHandle(threads[i]);
+        }
+    }
+    
+    delete[] threads;
+
+    std::cout << "Pipe server turned off..." << std::endl;
 }

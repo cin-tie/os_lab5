@@ -6,6 +6,14 @@
 #include "lock_manager.h"
 #include "protocol.h"
 
+class PipeServer;
+
+struct ThreadData {
+    PipeServer* server;
+    HANDLE pipe;
+    int clientNumber;
+};
+
 class PipeServer
 {
 private:
@@ -17,12 +25,7 @@ private:
     
 public:
     PipeServer(FileManager& fm, LockManager& lm);
-    void processClient(HANDLE pipe);
+    void processClient(ThreadData* threadData);
 
     void run(int clientsCount);
-};
-
-struct ThreadData {
-    PipeServer* server;
-    HANDLE pipe;
 };
