@@ -10,7 +10,7 @@ class PipeServer;
 
 struct ThreadData {
     PipeServer* server;
-    HANDLE pipe;
+    HANDLE hPipe;
     int clientNumber;
 };
 

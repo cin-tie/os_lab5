@@ -23,7 +23,7 @@ void PipeServer::processClient(ThreadData* threadData)
 
     while (true){
         // Read request
-        if (!ReadFile(threadData->pipe, &req, sizeof(req), &bytes, nullptr)) {
+        if (!ReadFile(threadData->hPipe, &req, sizeof(req), &bytes, nullptr)) {
             DWORD error = GetLastError();
             if (error != ERROR_BROKEN_PIPE) {
                 PrintError("ReadFile failed with error: " + std::to_string(error));
@@ -49,7 +49,7 @@ void PipeServer::processClient(ThreadData* threadData)
             PrintError("Invalid record index: " + std::to_string(index) + 
                       " (available: 0-" + std::to_string(recordCount - 1) + ")");
             res.success = false;
-            WriteFile(threadData->pipe, &res, sizeof(res), &bytes, nullptr);
+            WriteFile(threadData->hPipe, &res, sizeof(res), &bytes, nullptr);
             continue;
         }
 
@@ -158,7 +158,7 @@ void PipeServer::processClient(ThreadData* threadData)
             continue;
         }
         
-        if (!WriteFile(threadData->pipe, &res, sizeof(res), &bytes, nullptr)) {
+        if (!WriteFile(threadData->hPipe, &res, sizeof(res), &bytes, nullptr)) {
             PrintError("Failed to write response to pipe");
             break;
         }
@@ -173,7 +173,7 @@ void PipeServer::processClient(ThreadData* threadData)
         lockManager.unlockWrite(lockedRecord);
     }
     
-    CloseHandle(threadData->pipe);
+    CloseHandle(threadData->hPipe);
 
     std::cout << "Client " << threadData->clientNumber << " turned off..." << std::endl;
 }
@@ -201,7 +201,7 @@ void PipeServer::run(int clientsCount)
     for (int i = 0; i < clientsCount; ++i)
     {
         // Create pipe
-        HANDLE pipe = CreateNamedPipe(
+        HANDLE hPipe = CreateNamedPipe(
             PIPE_NAME,
             PIPE_ACCESS_DUPLEX,
             PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
@@ -212,7 +212,7 @@ void PipeServer::run(int clientsCount)
             nullptr
         );
 
-        if (pipe == INVALID_HANDLE_VALUE) {
+        if (hPipe == INVALID_HANDLE_VALUE) {
             PrintError("Pipe creation failed");
             continue;
         }
@@ -220,14 +220,14 @@ void PipeServer::run(int clientsCount)
         std::cout << "Waiting for client " << (i + 1) << " to connect..." << std::endl;
 
         // Try to connect
-        BOOL connected = ConnectNamedPipe(pipe, nullptr);
+        BOOL connected = ConnectNamedPipe(hPipe, nullptr);
         if (!connected && GetLastError() != ERROR_PIPE_CONNECTED) {
             PrintError("Failed to connect pipe");
-            CloseHandle(pipe);
+            CloseHandle(hPipe);
             continue;
         }
 
-        ThreadData* data = new ThreadData{ this, pipe, i + 1 };
+        ThreadData* data = new ThreadData{ this, hPipe, i + 1 };
 
         // Create handler thread for client
         HANDLE thread = CreateThread(
@@ -242,7 +242,7 @@ void PipeServer::run(int clientsCount)
         if (threads[i] == nullptr) {
             PrintError("Failed to create client thread");
             delete data;
-            CloseHandle(pipe);
+            CloseHandle(hPipe);
         }
 
     }
