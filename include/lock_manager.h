@@ -6,7 +6,7 @@
 // Struct for every employee to lock
 struct RecordLock
 {
-    HANDLE resourceMutex;
+    HANDLE writeSemaphore;
     HANDLE readerMutex;
     LONG readers;
 };

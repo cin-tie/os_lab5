@@ -12,14 +12,11 @@ LockManager::LockManager(int count)
 
     for (int i = 0; i < count; ++i)
     {
-        locks[i].resourceMutex = CreateMutex(nullptr, FALSE, nullptr);
+        locks[i].writeSemaphore = CreateSemaphore(nullptr, 1, 1, nullptr);
         locks[i].readerMutex = CreateMutex(nullptr, FALSE, nullptr);
-        
-        if (locks[i].resourceMutex == nullptr || locks[i].readerMutex == nullptr) {
-            ThrowLastError("Failed to create mutex");
-        }
-        
         locks[i].readers = 0;
+        if (locks[i].writeSemaphore == nullptr || locks[i].readerMutex == nullptr)
+            ThrowLastError("Failed to create semaphore or mutex");
     }
 }
 
@@ -45,20 +42,24 @@ bool LockManager::lockRead(int index)
     }
 
     lock.readers++;
-
-    // Check nobody writing and lock
-    if (lock.readers == 1) {
-        result = WaitForSingleObject(lock.resourceMutex, 5000);
-        if (result != WAIT_OBJECT_0) {
-            lock.readers--;
-            ReleaseMutex(lock.readerMutex);
-            PrintError("Failed to acquire resource mutex for read lock on record " + std::to_string(index));
-            return false;
-        }
-    }
+    bool firstReader = (lock.readers == 1);
 
     // Release read lock
     ReleaseMutex(lock.readerMutex);
+
+    // First reader acquires write semaphore (blocks writers)
+    if (firstReader) {
+        result = WaitForSingleObject(lock.writeSemaphore, 5000);
+        if (result != WAIT_OBJECT_0) {
+            WaitForSingleObject(lock.readerMutex, INFINITE);
+            lock.readers--;
+            ReleaseMutex(lock.readerMutex);
+            
+            PrintError("Failed to acquire write semaphore for read lock on record " + std::to_string(index));
+            return false;
+        }
+    } else {
+    }
     
     return true;
 }
@@ -80,16 +81,17 @@ bool LockManager::unlockRead(int index)
     }
 
     lock.readers--;
+    bool lastReader = (lock.readers == 0);
+    
+    ReleaseMutex(lock.readerMutex);
 
-    // Release writing if nobody reading
-    if (lock.readers == 0) {
-        ReleaseMutex(lock.resourceMutex);
+    // Last reader releases write semaphore
+    if (lastReader) {
+        ReleaseSemaphore(lock.writeSemaphore, 1, nullptr);
+    } else {
     }
-
-    // Release read lock
-    BOOL success = ReleaseMutex(lock.readerMutex);
-    return success != FALSE;
-
+    
+    return true;
 }
 
 bool LockManager::lockWrite(int index)
@@ -100,10 +102,10 @@ bool LockManager::lockWrite(int index)
     }
 
     // Check write and lock
-    DWORD result = WaitForSingleObject(locks[index].resourceMutex, 5000);
+    DWORD result = WaitForSingleObject(locks[index].writeSemaphore, 5000);
     if (result != WAIT_OBJECT_0) {
         if (result == WAIT_TIMEOUT) {
-            PrintError("Write lock timeout for record " + std::to_string(index) + " - record is locked by another client");
+            PrintError("Write lock timeout for record " + std::to_string(index) + " - record is being read by another client");
         }
         return false;
     }
@@ -118,8 +120,8 @@ bool LockManager::unlockWrite(int index)
         return false;
     }
 
-    // Release write lock
-    BOOL success = ReleaseMutex(locks[index].resourceMutex);
+    // Release write semaphore
+    BOOL success = ReleaseSemaphore(locks[index].writeSemaphore, 1, nullptr);
     if (!success) {
         PrintError("Failed to release write lock for record " + std::to_string(index));
     }
@@ -129,8 +131,8 @@ bool LockManager::unlockWrite(int index)
 // Destructor
 LockManager::~LockManager() {
     for (auto& lock : locks) {
-        if (lock.resourceMutex != nullptr) {
-            CloseHandle(lock.resourceMutex);
+        if (lock.writeSemaphore != nullptr) {
+            CloseHandle(lock.writeSemaphore);
         }
         if (lock.readerMutex != nullptr) {
             CloseHandle(lock.readerMutex);

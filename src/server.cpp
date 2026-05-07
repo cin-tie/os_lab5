@@ -113,7 +113,7 @@ int main()
         server.run(clientsCount);
 
 
-        std::cout << "\nPress any button to see file content. Type 'exit' to shutdown: ";
+        std::cout << "\nPress any button to see file content. Type 'exit' to shutdown. \n";
         std::string cmd;
         while (std::getline(std::cin, cmd)) {
             if (cmd == "exit" || cmd == "quit") {
