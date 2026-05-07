@@ -51,7 +51,7 @@ int main(){
 
             if(!res.success){
                 std::cout << "Something went wrong with reading..." << std::endl;
-                continue;
+                break;
             }
 
             std::cout << "\tEmployee #" + std::to_string(id) << std::endl;
@@ -90,7 +90,7 @@ int main(){
 
             if(!res.success){
                 std::cout << "Something went wrong with writing..." << std::endl;
-                continue;
+                break;
             }
 
             std::cout << "\tEmployee #" + std::to_string(id) << std::endl;
@@ -106,54 +106,95 @@ int main(){
             while (true)
             {
                 std::cin >> s;
-                if (s == "exit"){
+
+                if (s == "exit")
+                {
                     std::cout << "Commit changes(y/n): ";
                     std::string c;
                     std::cin >> c;
-                    if(c == "y" || c == "Y"){
+
+                    if (c == "y" || c == "Y")
+                    {
                         req.type = CommandType::WRITE_COMMIT;
                         req.data = e;
                         WriteFile(hPipe, &req, sizeof(req), &bytes, nullptr);
+                        ReadFile(hPipe, &res, sizeof(res), &bytes, nullptr);
                     }
+
                     break;
                 }
-                if(s == "commit"){
+
+                if (s == "commit")
+                {
                     req.type = CommandType::WRITE_COMMIT;
                     req.data = e;
                     WriteFile(hPipe, &req, sizeof(req), &bytes, nullptr);
+                    ReadFile(hPipe, &res, sizeof(res), &bytes, nullptr);
+                    e = res.data;
                 }
-                if(s == "num"){
+
+                if (s == "num")
+                {
                     std::cout << "Enter number: ";
-                    int temp = e.num;
-                    std::cin >> e.num;
-                    if (std::cin.fail()) {
-                        std::cerr << "Error: Invalid number input!" << std::endl;
-                        e.num = temp;
+
+                    int temp;
+                    std::cin >> temp;
+
+                    if (std::cin.fail())
+                    {
+                        std::cin.clear();
+                        std::cin.ignore(10000, '\n');
+                        std::cout << "Invalid\n";
                     }
-                }
-                if(s == "name"){
-                    std::cout << "Enter name: ";
-                    int temp = e.num;
-                    std::cin >> e.name;
-                    if (std::cin.fail()) {
-                        std::cerr << "Error: Invalid name input!" << std::endl;
-                        e.num = temp;
-                    }
-                }
-                if(s == "hours"){
-                    std::cout << "Enter hours: ";
-                    int temp = e.num;
-                    std::cin >> e.hours;
-                    if (std::cin.fail() || e.hours < 0) {
-                        std::cerr << "Error: Hours must be a non-negative number!" << std::endl;
+                    else
+                    {
                         e.num = temp;
                     }
                 }
 
-                std::cout << "\n\tEmployee #" + std::to_string(id) << std::endl;
-                std::cout << "Num:\t" << res.data.num << "\nName:\t"
-                        << res.data.name << "\nHours:\t "
-                        << res.data.hours << "\n";
+                if (s == "name")
+                {
+                    std::cout << "Enter name: ";
+
+                    char temp[NAME_SIZE];
+                    std::cin >> temp;
+
+                    if (std::cin.fail())
+                    {
+                        std::cin.clear();
+                        std::cin.ignore(10000, '\n');
+                        std::cout << "Invalid\n";
+                    }
+                    else
+                    {
+                        strncpy(e.name, temp, NAME_SIZE - 1);
+                        e.name[NAME_SIZE - 1] = '\0';
+                    }
+                }
+
+                if (s == "hours")
+                {
+                    std::cout << "Enter hours: ";
+
+                    double temp;
+                    std::cin >> temp;
+
+                    if (std::cin.fail() || temp < 0)
+                    {
+                        std::cin.clear();
+                        std::cin.ignore(10000, '\n');
+                        std::cout << "Invalid\n";
+                    }
+                    else
+                    {
+                        e.hours = temp;
+                    }
+                }
+
+                std::cout << "\nEmployee #" << id << "\n";
+                std::cout << e.num << "\n";
+                std::cout << e.name << "\n";
+                std::cout << e.hours << "\n";
             }
 
             req.type = CommandType::WRITE_RELEASE;

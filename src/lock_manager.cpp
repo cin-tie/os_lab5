@@ -28,6 +28,8 @@ bool LockManager::lockRead(int index)
     // Check nobody writing and lock
     if (lock.readers == 1){
         if(WaitForSingleObject(lock.resourceMutex, 5000) != WAIT_OBJECT_0){
+            lock.readers--;
+            ReleaseMutex(lock.readerMutex);
             return false;
         }
     }

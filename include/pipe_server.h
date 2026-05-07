@@ -1,26 +1,23 @@
 #pragma once
 
+#include <windows.h>
+#include <string>
 #include "file_manager.h"
 #include "lock_manager.h"
 #include "protocol.h"
 
-// Pipe server for responding client
 class PipeServer
 {
 private:
     FileManager& fileManager;
     LockManager& lockManager;
 
+    static const char* PIPE_NAME;
+
+    void processClient(HANDLE pipe);
+
 public:
-    PipeServer(FileManager& fileManager, LockManager& lockManager);
+    PipeServer(FileManager& fm, LockManager& lm);
 
-    void run(int clientCount);
-};
-
-// Thread data
-struct ThreadData
-{
-    HANDLE hPipe;
-    FileManager* fileManager;
-    LockManager* lockManager;
+    void run(int clientsCount);
 };

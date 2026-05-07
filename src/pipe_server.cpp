@@ -1,146 +1,143 @@
 #include "../include/pipe_server.h"
-#include "../include/utils.h"
-#include <windows.h>
 #include <iostream>
 
-const char* PIPE_NAME = "\\\\.\\pipe\\lab5_pipe";
+const char* PipeServer::PIPE_NAME = "\\\\.\\pipe\\lab5_pipe";
 
-PipeServer::PipeServer(FileManager& fileManager, LockManager& lockManager) : fileManager(fileManager), lockManager(lockManager){}
+PipeServer::PipeServer(FileManager& fm, LockManager& lm)
+    : fileManager(fm), lockManager(lm)
+{
+}
 
-// Client handling
-DWORD WINAPI HandleClient(LPVOID lpParam){
-    // Recieving data
-    ThreadData* data = static_cast<ThreadData*>(lpParam);
-
-    HANDLE hPipe = data->hPipe;
-    FileManager* fileManager = data->fileManager;
-    LockManager* lockManager = data->lockManager;
-
+void PipeServer::processClient(HANDLE pipe)
+{
     Request req;
     Response res;
     DWORD bytes;
 
-    bool active = true;
+    int lockedRecord = -1;
+    bool writeMode = false;
+    bool readMode = false;
 
-    while(active){
-        if (!ReadFile(hPipe, &req, sizeof(req), &bytes, nullptr))
+    while (true)
+    {
+        if (!ReadFile(pipe, &req, sizeof(req), &bytes, nullptr))
+            break;
+
+        if (req.type == CommandType::EXIT)
+            break;
+
+        int index = req.recordId;
+
+        if (index == -1)
         {
+            res.success = false;
+            WriteFile(pipe, &res, sizeof(res), &bytes, nullptr);
+            continue;
+        }
+
+        switch (req.type)
+        {
+        case CommandType::READ_LOCK:
+        {
+            if (!lockManager.lockRead(index))
+            {
+                res.success = false;
+                break;
+            }
+
+            lockedRecord = index;
+            readMode = true;
+
+            res.success = true;
+            res.data = fileManager.readRecord(index);
             break;
         }
 
-        res.success = true;
-
-        // Command handling
-        switch (req.type) {
-            // Lock while reading
-            case CommandType::READ_LOCK:
+        case CommandType::READ_RELEASE:
+        {
+            if (readMode)
             {
-                if(!lockManager->lockRead(req.recordId)){
-                    res.success = false;
-                }
-                else{
-                    res.data = fileManager->readRecord(req.recordId);
-                }
-
-                // Response on read lock
-                WriteFile(hPipe, &res, sizeof(res), &bytes, nullptr);
-
-                break;
+                lockManager.unlockRead(lockedRecord);
+                readMode = false;
+                lockedRecord = -1;
             }
-            case CommandType::READ_RELEASE:
-            {
-                lockManager->unlockRead(req.recordId);
 
-                break;
-            }
-            // Lock while writing
-            case CommandType::WRITE_LOCK:
-            {
-                if (!lockManager->lockWrite(req.recordId)){
-                    res.success = false;
-                }
-                else{
-                    res.data = fileManager->readRecord(req.recordId);
-                }
+            continue;
+        }
 
-                // Response to lock
-                WriteFile(hPipe, &res, sizeof(res), &bytes, nullptr);
-
-                break;
-            }
-            case CommandType::WRITE_COMMIT:
-            {
-                fileManager->writeRecord(req.recordId, req.data);
-             
-                break;
-            }
-            case CommandType::WRITE_RELEASE:
-            {
-                lockManager->unlockWrite(req.recordId);
-
-                break;
-            }
-            case CommandType::EXIT:
-            {
-                active = false;
-                break;
-            }
-            default:
+        case CommandType::WRITE_LOCK:
+        {
+            if (!lockManager.lockWrite(index))
             {
                 res.success = false;
-
-                WriteFile(hPipe, &res, sizeof(res), &bytes, nullptr);
-
                 break;
             }
+
+            lockedRecord = index;
+            writeMode = true;
+
+            res.success = true;
+            res.data = fileManager.readRecord(index);
+            break;
         }
+
+        case CommandType::WRITE_COMMIT:
+        {
+            if (writeMode && lockedRecord != -1)
+            {
+                fileManager.writeRecord(lockedRecord, req.data);
+                res.success = true;
+                res.data = fileManager.readRecord(lockedRecord);
+            }
+            else
+            {
+                res.success = false;
+            }
+
+            break;
+        }
+
+        case CommandType::WRITE_RELEASE:
+        {
+            if (writeMode)
+            {
+                lockManager.unlockWrite(lockedRecord);
+                writeMode = false;
+                lockedRecord = -1;
+            }
+
+            continue;
+        }
+
+        default:
+            continue;
+        }
+
+        WriteFile(pipe, &res, sizeof(res), &bytes, nullptr);
     }
 
-    // Flushing pipes
-    FlushFileBuffers(hPipe);
-    DisconnectNamedPipe(hPipe);
-    CloseHandle(hPipe);
-    
-    delete data;
-
-    return 0;
+    CloseHandle(pipe);
 }
 
-// Running pipe server
-void PipeServer::run(int clientCount){
-    for(int i = 0; i < clientCount; ++i){
-        // Creating pipes
-        HANDLE hPipe = CreateNamedPipe(
-                        PIPE_NAME,
-                        PIPE_ACCESS_DUPLEX,
-                        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
-                        clientCount,
-                        sizeof(Response),
-                        sizeof(Request),
-                        INFINITE,
-                        nullptr
-                        );
-        
-        if(hPipe == INVALID_HANDLE_VALUE){
-            ThrowLastError("CreateNamedPipe failed");
-        }
-        
-        if(!ConnectNamedPipe(hPipe, nullptr)){
-            CloseHandle(hPipe);
-            continue;
-        }
+void PipeServer::run(int clientsCount)
+{
+    for (int i = 0; i < clientsCount; ++i)
+    {
+        HANDLE pipe = CreateNamedPipe(
+            PIPE_NAME,
+            PIPE_ACCESS_DUPLEX,
+            PIPE_TYPE_MESSAGE |
+            PIPE_READMODE_MESSAGE |
+            PIPE_WAIT,
+            PIPE_UNLIMITED_INSTANCES,
+            sizeof(Response),
+            sizeof(Request),
+            0,
+            nullptr
+        );
 
-        ThreadData* data = new ThreadData{hPipe, &fileManager, &lockManager};
+        ConnectNamedPipe(pipe, nullptr);
 
-        // Creating threads for clients
-        HANDLE thread = CreateThread(nullptr, 0, HandleClient, data, 0, nullptr);
-
-        if(thread == nullptr){
-            delete data;
-            CloseHandle(hPipe);
-            continue;
-        }
-
-        CloseHandle(thread);
+        processClient(pipe);
     }
 }

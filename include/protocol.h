@@ -6,12 +6,10 @@
 enum class CommandType
 {
     READ_LOCK,
-    READ_GET,
     READ_RELEASE,
 
     WRITE_LOCK,
     WRITE_COMMIT,
-    WRITE_GET,
     WRITE_RELEASE,
 
     EXIT
