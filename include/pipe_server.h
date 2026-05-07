@@ -14,10 +14,15 @@ private:
 
     static const char* PIPE_NAME;
 
-    void processClient(HANDLE pipe);
-
+    
 public:
     PipeServer(FileManager& fm, LockManager& lm);
+    void processClient(HANDLE pipe);
 
     void run(int clientsCount);
+};
+
+struct ThreadData {
+    PipeServer* server;
+    HANDLE pipe;
 };

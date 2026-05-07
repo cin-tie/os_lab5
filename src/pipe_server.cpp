@@ -119,6 +119,16 @@ void PipeServer::processClient(HANDLE pipe)
     CloseHandle(pipe);
 }
 
+DWORD WINAPI clientThread(LPVOID param)
+{
+    ThreadData* data = (ThreadData*)param;
+
+    data->server->processClient(data->pipe);
+
+    delete data;
+    return 0;
+}
+
 void PipeServer::run(int clientsCount)
 {
     for (int i = 0; i < clientsCount; ++i)
@@ -126,9 +136,7 @@ void PipeServer::run(int clientsCount)
         HANDLE pipe = CreateNamedPipe(
             PIPE_NAME,
             PIPE_ACCESS_DUPLEX,
-            PIPE_TYPE_MESSAGE |
-            PIPE_READMODE_MESSAGE |
-            PIPE_WAIT,
+            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
             PIPE_UNLIMITED_INSTANCES,
             sizeof(Response),
             sizeof(Request),
@@ -136,8 +144,30 @@ void PipeServer::run(int clientsCount)
             nullptr
         );
 
-        ConnectNamedPipe(pipe, nullptr);
+        if (pipe == INVALID_HANDLE_VALUE)
+        {
+            std::cout << "Pipe creation failed\n";
+            continue;
+        }
 
-        processClient(pipe);
+        BOOL connected = ConnectNamedPipe(pipe, nullptr);
+        if (!connected)
+        {
+            CloseHandle(pipe);
+            continue;
+        }
+
+        ThreadData* data = new ThreadData{ this, pipe };
+
+        HANDLE thread = CreateThread(
+            nullptr,
+            0,
+            clientThread,
+            data,
+            0,
+            nullptr
+        );
+
+        CloseHandle(thread);
     }
 }
